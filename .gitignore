@@ -1,0 +1,15 @@
+# Excel files (private data)
+*.xlsx
+*.xls
+~$*.xlsx
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local logs
+log_dashboard.txt
+
+# OS metadata
+.DS_Store
+Thumbs.db
