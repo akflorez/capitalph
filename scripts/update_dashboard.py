@@ -7,21 +7,49 @@ import http.server
 import socketserver
 import webbrowser
 import sys
+import openpyxl
 
 # Configuración de Rutas
 BASE_DIR = r"c:\Users\ANA KARINA\Desktop\CARTERAS PROPIEDAD HORIZONTAL"
-TEMPLATE_FILE = r"C:\Users\ANA KARINA\.gemini\antigravity\scratch\dashboard_template.html"
-OUTPUT_HTML = r"c:\Users\ANA KARINA\Desktop\DASHBOARD_CARTERAS.html"
+TEMPLATE_FILE = "template.html"
+OUTPUT_HTML = "../index.html"
 PORT = 3001
 
 def log(msg):
-    print(msg)
+    print(msg, flush=True)
 
 def process_file(file_path):
     results = []
     try:
         xls = pd.ExcelFile(file_path)
-        sheet_names = [s for s in xls.sheet_names if s.strip().isdigit()]
+        sheet_names_all = xls.sheet_names
+        
+        # 1. Identificar unidades a ignorar desde 'BASE DE DATOS'
+        ignore_units = set()
+        bd_sheet_name = next((n for n in sheet_names_all if "BASE DE DATOS" in n.upper()), None)
+        if bd_sheet_name:
+            try:
+                # Leemos la pestaña de base de datos (header en fila 2, que es índice 1)
+                df_bd = pd.read_excel(xls, sheet_name=bd_sheet_name, header=1)
+                concepto_col = next((c for c in df_bd.columns if "CONCEPTO FINAL" in str(c).upper()), None)
+                if concepto_col is not None:
+                    for _, row in df_bd.iterrows():
+                        unit_code = str(row.iloc[0]).strip()
+                        if not unit_code or unit_code == "nan": continue
+                        
+                        concepto = str(row[concepto_col]).strip().upper()
+                        if concepto in ["PAZ Y SALVO", "RETIRADO"]:
+                            ignore_units.add(unit_code)
+                            # Asegurar formatos comunes (001, 01, 1)
+                            if unit_code.isdigit():
+                                ignore_units.add(str(int(unit_code)))
+                                ignore_units.add(unit_code.zfill(2))
+                                ignore_units.add(unit_code.zfill(3))
+            except Exception as e:
+                log(f"Aviso: No se pudo procesar filtro en {file_path}: {e}")
+
+        # 2. Procesar pestañas (excluyendo las ignoradas)
+        sheet_names = [s for s in sheet_names_all if s.strip().isdigit() and s.strip() not in ignore_units]
         for sheet in sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet, header=None)
             debt_sum = 0
@@ -131,7 +159,7 @@ def update_data():
 if __name__ == "__main__":
     try:
         update_data()
-        log(f"Abriendo dashboard directamente...")
-        webbrowser.open("file:///" + OUTPUT_HTML.replace("\\", "/"))
+        log(f"Generando index.html para despliegue...")
+        # webbrowser.open("file:///" + os.path.abspath(OUTPUT_HTML).replace("\\", "/"))
     except Exception as e:
         log(f"Error: {e}")
